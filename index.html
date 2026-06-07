@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>部品写真登録</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<style>
+body{
+    font-family:sans-serif;
+    max-width:600px;
+    margin:auto;
+    padding:20px;
+}
+
+input,button{
+    width:100%;
+    padding:12px;
+    margin-top:10px;
+    font-size:18px;
+}
+
+img{
+    width:100%;
+    margin-top:10px;
+}
+</style>
+</head>
+
+<body>
+
+<h2>部品写真登録</h2>
+
+<input id="partNo" placeholder="部品番号">
+
+<input type="file"
+       id="camera"
+       accept="image/*"
+       capture="environment">
+
+<img id="preview">
+
+<button onclick="savePDF()">
+PDF保存
+</button>
+
+<div id="msg"></div>
+
+<script>
+
+let imageBase64="";
+
+document.getElementById("camera").addEventListener("change",e=>{
+
+    const file=e.target.files[0];
+
+    const reader=new FileReader();
+
+    reader.onload=function(ev){
+
+        imageBase64=ev.target.result;
+
+        document.getElementById("preview").src=imageBase64;
+
+    };
+
+    reader.readAsDataURL(file);
+
+});
+
+async function savePDF(){
+
+    const partNo=
+      document.getElementById("partNo").value.trim();
+
+    if(partNo===""){
+        alert("部品番号を入力してください");
+        return;
+    }
+
+    if(imageBase64===""){
+        alert("写真を撮影してください");
+        return;
+    }
+
+    const {jsPDF}=window.jspdf;
+
+    const pdf=new jsPDF();
+
+    pdf.setFontSize(16);
+
+    pdf.text("部品番号 : "+partNo,10,15);
+
+    pdf.text(
+      "登録日時 : "+
+      new Date().toLocaleString(),
+      10,25
+    );
+
+    pdf.addImage(
+      imageBase64,
+      "JPEG",
+      10,
+      35,
+      180,
+      120
+    );
+
+    const pdfBlob=pdf.output("blob");
+
+    uploadPDF(pdfBlob,partNo+".pdf");
+
+}
+
+function uploadPDF(blob,fileName){
+
+    const reader=new FileReader();
+
+    reader.onloadend=function(){
+
+        fetch(
+          "https://script.google.com/macros/s/AKfycbxBKGyue_nz21M3rPluxRuGo345B1WFysKGZuM4sg4sgPZ2i-Mkr-hyAQg4byayXy1yXg/exec",
+          {
+            method:"POST",
+            body:JSON.stringify({
+              filename:fileName,
+              data:reader.result
+            })
+          }
+        )
+        .then(r=>r.text())
+        .then(msg=>{
+            document.getElementById("msg").innerHTML=msg;
+        });
+
+    };
+
+    reader.readAsDataURL(blob);
+
+}
+
+</script>
+
+</body>
+</html>
