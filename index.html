@@ -1,9 +1,9 @@
+```html
 <!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-
 <title>部品写真登録</title>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -12,52 +12,76 @@
 <style>
 
 body{
-    font-family:sans-serif;
-    max-width:700px;
+    font-family:Arial,sans-serif;
+    max-width:900px;
     margin:auto;
     padding:20px;
+    background:#f5f5f5;
 }
 
-h2{
-    margin-top:40px;
+.container{
+    background:white;
+    padding:20px;
+    border-radius:10px;
+    box-shadow:0 2px 10px rgba(0,0,0,0.1);
 }
 
-input,button{
+h1{
+    text-align:center;
+    margin-bottom:20px;
+}
+
+input,
+button{
     width:100%;
-    padding:12px;
-    margin-top:10px;
-    font-size:18px;
+    padding:15px;
+    font-size:22px;
     box-sizing:border-box;
+    margin-top:10px;
 }
 
-img{
+button{
+    cursor:pointer;
+}
+
+#preview{
     width:100%;
-    margin-top:10px;
+    margin-top:15px;
     border:1px solid #ccc;
+    display:none;
+}
+
+#saveBtn{
+    display:none;
+}
+
+#partDisplay{
+    text-align:center;
+    font-size:32px;
+    font-weight:bold;
+    color:#0066cc;
+    margin-top:10px;
+    height:40px;
 }
 
 #msg{
-    margin-top:15px;
+    margin-top:20px;
+    font-size:20px;
     font-weight:bold;
 }
-
-/* QRコード表示 */
 
 #qrcodeBox{
     position:fixed;
     top:10px;
     right:10px;
-    background:#fff;
+    background:white;
     border:1px solid #ccc;
     padding:5px;
-    z-index:1000;
-    box-shadow:0 0 5px rgba(0,0,0,0.2);
+    z-index:9999;
 }
 
-#qrcodeLabel{
-    text-align:center;
-    font-size:12px;
-    margin-top:4px;
+#cameraBtn{
+    margin-top:20px;
 }
 
 </style>
@@ -67,64 +91,124 @@ img{
 
 <div id="qrcodeBox">
     <div id="qrcode"></div>
-    <div id="qrcodeLabel">このアプリ</div>
 </div>
 
-<h2>部品写真登録</h2>
+<div class="container">
+
+<h1>部品写真登録</h1>
 
 <input
     id="partNo"
-    type="text"
-    placeholder="部品番号を入力">
+    type="tel"
+    maxlength="8"
+    inputmode="numeric"
+    placeholder="部品番号 8桁を入力">
+
+<div id="partDisplay"></div>
+
+<button id="cameraBtn">
+📷 写真撮影
+</button>
 
 <input
-    type="file"
     id="camera"
+    type="file"
     accept="image/*"
-    capture="environment">
+    capture="environment"
+    style="display:none;">
 
 <img id="preview">
 
-<button onclick="savePDF()">
+<button id="saveBtn">
 PDF保存
 </button>
 
 <div id="msg"></div>
 
+</div>
+
 <script>
 
 let imageBase64 = "";
-
-/* QRコード生成 */
 
 new QRCode(
     document.getElementById("qrcode"),
     {
         text: window.location.href,
-        width: 100,
-        height: 100
+        width:100,
+        height:100
     }
 );
 
-/* 画像選択 */
+const partNoInput =
+    document.getElementById("partNo");
+
+partNoInput.addEventListener("input", function(){
+
+    let value =
+        this.value.replace(/\D/g,'');
+
+    if(value.length > 8){
+        value = value.substring(0,8);
+    }
+
+    this.value = value;
+
+    if(value.length === 8){
+
+        document.getElementById("partDisplay").innerHTML =
+            value.substring(0,4)
+            + "-"
+            + value.substring(4,8);
+
+    }else{
+
+        document.getElementById("partDisplay").innerHTML = "";
+
+    }
+
+});
+
+document
+.getElementById("cameraBtn")
+.addEventListener("click", function(){
+
+    const value =
+        partNoInput.value;
+
+    if(value.length !== 8){
+
+        alert("部品番号を8桁入力してください");
+
+        return;
+
+    }
+
+    document
+        .getElementById("camera")
+        .click();
+
+});
 
 document
 .getElementById("camera")
 .addEventListener("change", function(e){
 
-    const file = e.target.files[0];
+    const file =
+        e.target.files[0];
 
     if(!file) return;
 
-    const reader = new FileReader();
+    const reader =
+        new FileReader();
 
     reader.onload = function(ev){
 
-        imageBase64 = ev.target.result;
-
-        document
-            .getElementById("preview")
-            .src = imageBase64;
+        compressImage(
+            ev.target.result,
+            1600,
+            0.7
+        );
 
     };
 
@@ -132,63 +216,167 @@ document
 
 });
 
-/* PDF作成 */
+function compressImage(src,maxSize,quality){
 
-async function savePDF(){
+    const img =
+        new Image();
 
-    const partNo =
-        document.getElementById("partNo")
-        .value.trim();
+    img.onload = function(){
 
-    if(partNo === ""){
-        alert("部品番号を入力してください");
-        return;
-    }
+        let w = img.width;
+        let h = img.height;
 
-    if(imageBase64 === ""){
-        alert("写真を撮影してください");
-        return;
-    }
+        if(w > h){
 
-    const { jsPDF } = window.jspdf;
+            if(w > maxSize){
 
-    const pdf = new jsPDF();
+                h = h * (maxSize / w);
+                w = maxSize;
 
-    pdf.setFontSize(16);
+            }
 
-    pdf.text(
-        "Part No : " + partNo,
-        10,
-        15
-    );
+        }else{
 
-    pdf.text(
-        "Date : " +
-        new Date().toLocaleString(),
-        10,
-        25
-    );
+            if(h > maxSize){
 
-    pdf.addImage(
-        imageBase64,
-        "JPEG",
-        10,
-        35,
-        180,
-        120
-    );
+                w = w * (maxSize / h);
+                h = maxSize;
 
-    const pdfBlob =
-        pdf.output("blob");
+            }
 
-    uploadPDF(
-        pdfBlob,
-        partNo + ".pdf"
-    );
+        }
+
+        const canvas =
+            document.createElement("canvas");
+
+        canvas.width = w;
+        canvas.height = h;
+
+        const ctx =
+            canvas.getContext("2d");
+
+        ctx.drawImage(
+            img,
+            0,
+            0,
+            w,
+            h
+        );
+
+        imageBase64 =
+            canvas.toDataURL(
+                "image/jpeg",
+                quality
+            );
+
+        document
+            .getElementById("preview")
+            .src = imageBase64;
+
+        document
+            .getElementById("preview")
+            .style.display = "block";
+
+        document
+            .getElementById("saveBtn")
+            .style.display = "block";
+
+    };
+
+    img.src = src;
 
 }
 
-/* Google Driveアップロード */
+document
+.getElementById("saveBtn")
+.addEventListener("click", savePDF);
+
+function savePDF(){
+
+    const rawPartNo =
+        partNoInput.value;
+
+    if(rawPartNo.length !== 8){
+
+        alert("部品番号エラー");
+
+        return;
+
+    }
+
+    const formattedPartNo =
+        rawPartNo.substring(0,4)
+        + "-"
+        + rawPartNo.substring(4,8);
+
+    const { jsPDF } =
+        window.jspdf;
+
+    const pdf =
+        new jsPDF(
+            "p",
+            "mm",
+            "a4"
+        );
+
+    const img =
+        new Image();
+
+    img.onload = function(){
+
+        const pageWidth = 210;
+        const pageHeight = 297;
+
+        const margin = 10;
+
+        const maxWidth =
+            pageWidth - (margin * 2);
+
+        const maxHeight =
+            pageHeight - 30;
+
+        const ratio =
+            Math.min(
+                maxWidth / img.width,
+                maxHeight / img.height
+            );
+
+        const w =
+            img.width * ratio;
+
+        const h =
+            img.height * ratio;
+
+        pdf.setFontSize(18);
+
+        pdf.text(
+            formattedPartNo,
+            10,
+            12
+        );
+
+        pdf.addImage(
+            imageBase64,
+            "JPEG",
+            (pageWidth - w) / 2,
+            20,
+            w,
+            h
+        );
+
+        const pdfBlob =
+            pdf.output("blob");
+
+        uploadPDF(
+            pdfBlob,
+            formattedPartNo + ".pdf"
+        );
+
+    };
+
+    img.src = imageBase64;
+
+}
 
 function uploadPDF(blob,fileName){
 
@@ -207,18 +395,18 @@ function uploadPDF(blob,fileName){
                 })
             }
         )
-        .then(res => res.text())
-        .then(msg => {
+        .then(response => response.text())
+        .then(result => {
 
             document
                 .getElementById("msg")
                 .innerHTML =
-                "✔ " + msg;
+                "保存完了 : " + fileName;
 
         })
-        .catch(err => {
+        .catch(error => {
 
-            console.error(err);
+            console.error(error);
 
             document
                 .getElementById("msg")
@@ -237,3 +425,4 @@ function uploadPDF(blob,fileName){
 
 </body>
 </html>
+```
