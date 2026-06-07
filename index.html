@@ -3,16 +3,23 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>部品画像登録</title>
+
+<title>部品写真登録</title>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
 <style>
+
 body{
     font-family:sans-serif;
-    max-width:600px;
+    max-width:700px;
     margin:auto;
     padding:20px;
+}
+
+h2{
+    margin-top:40px;
 }
 
 input,button{
@@ -20,25 +27,61 @@ input,button{
     padding:12px;
     margin-top:10px;
     font-size:18px;
+    box-sizing:border-box;
 }
 
 img{
     width:100%;
     margin-top:10px;
+    border:1px solid #ccc;
 }
+
+#msg{
+    margin-top:15px;
+    font-weight:bold;
+}
+
+/* QRコード表示 */
+
+#qrcodeBox{
+    position:fixed;
+    top:10px;
+    right:10px;
+    background:#fff;
+    border:1px solid #ccc;
+    padding:5px;
+    z-index:1000;
+    box-shadow:0 0 5px rgba(0,0,0,0.2);
+}
+
+#qrcodeLabel{
+    text-align:center;
+    font-size:12px;
+    margin-top:4px;
+}
+
 </style>
 </head>
 
 <body>
 
+<div id="qrcodeBox">
+    <div id="qrcode"></div>
+    <div id="qrcodeLabel">このアプリ</div>
+</div>
+
 <h2>部品写真登録</h2>
 
-<input id="partNo" placeholder="部品番号">
+<input
+    id="partNo"
+    type="text"
+    placeholder="部品番号を入力">
 
-<input type="file"
-       id="camera"
-       accept="image/*"
-       capture="environment">
+<input
+    type="file"
+    id="camera"
+    accept="image/*"
+    capture="environment">
 
 <img id="preview">
 
@@ -50,19 +93,38 @@ PDF保存
 
 <script>
 
-let imageBase64="";
+let imageBase64 = "";
 
-document.getElementById("camera").addEventListener("change",e=>{
+/* QRコード生成 */
 
-    const file=e.target.files[0];
+new QRCode(
+    document.getElementById("qrcode"),
+    {
+        text: window.location.href,
+        width: 100,
+        height: 100
+    }
+);
 
-    const reader=new FileReader();
+/* 画像選択 */
 
-    reader.onload=function(ev){
+document
+.getElementById("camera")
+.addEventListener("change", function(e){
 
-        imageBase64=ev.target.result;
+    const file = e.target.files[0];
 
-        document.getElementById("preview").src=imageBase64;
+    if(!file) return;
+
+    const reader = new FileReader();
+
+    reader.onload = function(ev){
+
+        imageBase64 = ev.target.result;
+
+        document
+            .getElementById("preview")
+            .src = imageBase64;
 
     };
 
@@ -70,69 +132,99 @@ document.getElementById("camera").addEventListener("change",e=>{
 
 });
 
+/* PDF作成 */
+
 async function savePDF(){
 
-    const partNo=
-      document.getElementById("partNo").value.trim();
+    const partNo =
+        document.getElementById("partNo")
+        .value.trim();
 
-    if(partNo===""){
+    if(partNo === ""){
         alert("部品番号を入力してください");
         return;
     }
 
-    if(imageBase64===""){
+    if(imageBase64 === ""){
         alert("写真を撮影してください");
         return;
     }
 
-    const {jsPDF}=window.jspdf;
+    const { jsPDF } = window.jspdf;
 
-    const pdf=new jsPDF();
+    const pdf = new jsPDF();
 
     pdf.setFontSize(16);
 
-    pdf.text("部品番号 : "+partNo,10,15);
+    pdf.text(
+        "Part No : " + partNo,
+        10,
+        15
+    );
 
     pdf.text(
-      "登録日時 : "+
-      new Date().toLocaleString(),
-      10,25
+        "Date : " +
+        new Date().toLocaleString(),
+        10,
+        25
     );
 
     pdf.addImage(
-      imageBase64,
-      "JPEG",
-      10,
-      35,
-      180,
-      120
+        imageBase64,
+        "JPEG",
+        10,
+        35,
+        180,
+        120
     );
 
-    const pdfBlob=pdf.output("blob");
+    const pdfBlob =
+        pdf.output("blob");
 
-    uploadPDF(pdfBlob,partNo+".pdf");
+    uploadPDF(
+        pdfBlob,
+        partNo + ".pdf"
+    );
 
 }
 
+/* Google Driveアップロード */
+
 function uploadPDF(blob,fileName){
 
-    const reader=new FileReader();
+    const reader =
+        new FileReader();
 
-    reader.onloadend=function(){
+    reader.onloadend = function(){
 
         fetch(
-          "https://script.google.com/macros/s/AKfycbxBKGyue_nz21M3rPluxRuGo345B1WFysKGZuM4sg4sgPZ2i-Mkr-hyAQg4byayXy1yXg/exec",
-          {
-            method:"POST",
-            body:JSON.stringify({
-              filename:fileName,
-              data:reader.result
-            })
-          }
+            "https://script.google.com/macros/s/AKfycbyJ0dpMOokO27qe3mn3vNcuyJaTyO1L1bTZBuoW6L0vCRGEz0bQ1Y4CR8cATcL30VtXAQ/exec",
+            {
+                method:"POST",
+                body:JSON.stringify({
+                    filename:fileName,
+                    data:reader.result
+                })
+            }
         )
-        .then(r=>r.text())
-        .then(msg=>{
-            document.getElementById("msg").innerHTML=msg;
+        .then(res => res.text())
+        .then(msg => {
+
+            document
+                .getElementById("msg")
+                .innerHTML =
+                "✔ " + msg;
+
+        })
+        .catch(err => {
+
+            console.error(err);
+
+            document
+                .getElementById("msg")
+                .innerHTML =
+                "保存失敗";
+
         });
 
     };
